@@ -37,39 +37,44 @@
 
 ## Configuration Guide (Administrator)
 
-This section explains how to set up the Google Cloud resources required for **Real Mode**. If you are just testing the app in Simulation Mode, you can skip this.
+This section explains how to set up the **Google Cloud Healthcare API** resources required for **Real Mode**. 
 
 ### Step 1: Create a Google Cloud Project
 1.  Go to the [Google Cloud Console](https://console.cloud.google.com/).
-2.  Click the project dropdown at the top of the page and select **"New Project"**.
-3.  Give it a name (e.g., `clinical-data-app`) and click **Create**.
-4.  Copy the **Project ID** (it might be `clinical-data-app-12345`). You will need this for `config.json`.
+2.  Create a **New Project**.
+3.  Copy the **Project ID**.
 
-### Step 2: Enable the DLP API
-1.  In the search bar at the top, type **"Data Loss Prevention API"** and select it.
+### Step 2: Enable the Healthcare API
+1.  In the search bar, type **"Cloud Healthcare API"** and select it.
 2.  Click **Enable**.
 
-### Step 3: Get Credentials (The Key File)
-The app needs permission to access the DLP service.
-1.  Go to **[IAM & Admin > Service Accounts](https://console.cloud.google.com/iam-admin/serviceaccounts)**.
-2.  Click **Create Service Account**.
-    *   **Name**: `dlp-access`.
-    *   **Access**: Give it the role **"DLP User"** (or Owner for testing).
-    *   Click **Done**.
-3.  Click on the email address of the service account you just created.
-4.  Go to the **Keys** tab (at the top).
-5.  Click **Add Key** > **Create new key**.
-6.  Select **JSON** and click **Create**.
-7.  A file will download to your computer.
-    *   **Action**: Rename this file to `credentials.json` and move it into the `Google-HealthCare-API` folder (where the `.bat` files are).
+### Step 3: Create Dataset and FHIR Stores
+1.  Go to the **Healthcare Browser** in the console.
+2.  **Create Dataset**: e.g., `clinical-dataset` (Region: `us-central1`).
+3.  **Create Input FHIR Store**: Inside the dataset, create a FHIR Store named `input-store`.
+    *   *Configuration*: Select "R4" or "STU3" (R4 recommended).
+4.  *(Optional)*: The application handles the creation of output stores, or you can create a dedicated `anonymized-store` if you wish to configure it specifically.
 
-### Step 4: Update config.json
-Open `config.json` with Notepad (or TextEdit on Mac) and fill in your Project ID:
+### Step 4: Get Credentials (Service Account)
+1.  Go to **IAM & Admin > Service Accounts**.
+2.  Create a Service Account (e.g., `healthcare-admin`).
+3.  **Grant Roles**:
+    *   **Healthcare Dataset Administrator** (or finer grained control to read/write FHIR stores).
+    *   **Healthcare FHIR Store Editor**.
+4.  Create a **JSON Key** for this account and download it.
+5.  **Action**: Rename this file to `credentials.json` and move it into the project folder.
+
+### Step 5: Update config.json
+Open `config.json` and fill in your details:
 
 ```json
 {
     "google_cloud": {
-        "project_id": "YOUR_PROJECT_ID_FROM_STEP_1",
+        "project_id": "YOUR_PROJECT_ID",
+        "location": "us-central1",
+        "dataset_id": "clinical-dataset",
+        "fhir_store_id": "input-store",
+        "destination_store_id": "anonymized-store",
         "service_account_key_file": "credentials.json"
     },
     "app_settings": {
@@ -77,22 +82,15 @@ Open `config.json` with Notepad (or TextEdit on Mac) and fill in your Project ID
     }
 }
 ```
-*Note: Set `"simulation_mode": false` to actually use the Google Cloud connection.*
+*Set `"simulation_mode": false` to go live.*
 
 ---
 
-## How to Use
+## How it Works
 
-Once the application is running (see **Installation & Usage Guide** above):
-
-1.  **Select Folder**: Click the **"Select Data Folder"** button and choose the directory on your computer containing the text files you want to anonymize.
-2.  **Review Files**: The application will list all files found in the "Pending Documents" list.
-3.  **Start Processing**: Click **"Start Processing"**.
-    *   The app will read each file one by one.
-    *   It sends the text securely to Google Cloud DLP.
-    *   It receives the anonymized text back.
-    *   A new file is saved in a `processed/` subfolder (e.g., `processed/anonymized_patient_01.txt`).
-4.  **Completion**: Once finished, you will see a confirmation message. You can find your safe, anonymized documents in the `processed` folder inside your original source folder.
+1.  **Batch Upload**: The app scans your local folder and securely uploads text files to your Google Cloud **Input FHIR Store** as `DocumentReference` resources.
+2.  **Server-Side De-identification**: It triggers a powerful, asynchronous **De-identify** operation on the Cloud Healthcare API. This creates a new FHIR Store containing only anonymized data.
+3.  **Result Retrieval**: The app waits for the job to finish, then downloads the anonymized text from the output store and saves it to your local `processed/` folder.
 
 ---
 **Made by Tomás González Bartomeu - PoltorProgrammer** - [![Email](https://img.shields.io/badge/Email-poltorprogrammer%40gmail.com-EA4335?logo=gmail&labelColor=lightgrey)](mailto:poltorprogrammer@gmail.com)

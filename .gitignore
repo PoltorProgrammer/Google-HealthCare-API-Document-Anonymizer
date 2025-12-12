@@ -5,5 +5,6 @@ credentials.json
 .shortcut_created
 *.mp3
 *.aiff
-processed_*.txt
+processed/
 config.json
+.venv_trash_timestamp/

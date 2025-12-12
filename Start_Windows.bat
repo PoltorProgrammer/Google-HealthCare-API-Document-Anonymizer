@@ -12,7 +12,7 @@ echo.
 :: -------------------------------------------------------------
 :: STEP A: CREATE DESKTOP SHORTCUT (First Run Only)
 :: -------------------------------------------------------------
-set "TARGET_SCRIPT=%~dp0Start_App.bat"
+set "TARGET_SCRIPT=%~dp0Start_Windows.bat"
 set "SHORTCUT_NAME=%USERPROFILE%\Desktop\Start Clinical Processor.lnk"
 
 :: Use a marker file to know if we already tried creating a shortcut

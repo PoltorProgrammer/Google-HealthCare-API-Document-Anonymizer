@@ -9,6 +9,10 @@ if [ ! -f "config.json" ]; then
 {
     "google_cloud": {
         "project_id": "ENTER_PROJECT_ID",
+        "location": "us-central1",
+        "dataset_id": "clinical-dataset",
+        "fhir_store_id": "input-store",
+        "destination_store_id": "anonymized-store",
         "service_account_key_file": "credentials.json"
     },
     "app_settings": {
