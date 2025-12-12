@@ -31,7 +31,7 @@
     ```
 5.  **Prerequisites**:
     *   Ensure you have Python 3 and `venv` installed (`sudo apt install python3-venv` on Debian/Ubuntu).
-    *   For Text-to-Speech support, you may need `espeak` (`sudo apt install espeak`).
+
 
 ---
 
@@ -63,7 +63,7 @@ The app needs permission to access the DLP service.
 7.  A file will download to your computer.
     *   **Action**: Rename this file to `credentials.json` and move it into the `Google-HealthCare-API` folder (where the `.bat` files are).
 
-### Step 5: Update config.json
+### Step 4: Update config.json
 Open `config.json` with Notepad (or TextEdit on Mac) and fill in your Project ID:
 
 ```json
@@ -78,6 +78,21 @@ Open `config.json` with Notepad (or TextEdit on Mac) and fill in your Project ID
 }
 ```
 *Note: Set `"simulation_mode": false` to actually use the Google Cloud connection.*
+
+---
+
+## How to Use
+
+Once the application is running (see **Installation & Usage Guide** above):
+
+1.  **Select Folder**: Click the **"Select Data Folder"** button and choose the directory on your computer containing the text files you want to anonymize.
+2.  **Review Files**: The application will list all files found in the "Pending Documents" list.
+3.  **Start Processing**: Click **"Start Processing"**.
+    *   The app will read each file one by one.
+    *   It sends the text securely to Google Cloud DLP.
+    *   It receives the anonymized text back.
+    *   A new file is saved in a `processed/` subfolder (e.g., `processed/anonymized_patient_01.txt`).
+4.  **Completion**: Once finished, you will see a confirmation message. You can find your safe, anonymized documents in the `processed` folder inside your original source folder.
 
 ---
 **Made by Tomás González Bartomeu - PoltorProgrammer - (PoltorProgrammer@gmail.com)**
