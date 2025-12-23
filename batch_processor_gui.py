@@ -6,14 +6,15 @@ import time
 import threading
 import json
 import base64
+import mimetypes
 
-# Note: Integration with Google Cloud Healthcare API
-from healthcare_processor import HealthcareProcessor
+# Note: Integration with Google Cloud DLP (Data Loss Prevention)
+from dlp_processor import ClinicalDocumentProcessor
 
 class LocalFileProcessorApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Clinical Document Processor - Healthcare API")
+        self.root.title("Clinical Document Processor - Google DLP")
         self.root.geometry("600x500")
 
         self.source_folder = ""
@@ -64,11 +65,27 @@ class LocalFileProcessorApp:
         list_frame.columnconfigure(0, weight=1)
         list_frame.columnconfigure(1, weight=1)
 
-        # 4. Status Bar
+        # 4. Log Box
+        log_frame = tk.Frame(self.root, pady=5)
+        log_frame.pack(fill=tk.BOTH, expand=True, padx=10)
+        
+        tk.Label(log_frame, text="Execution Log:").pack(anchor="w")
+        self.text_log = tk.Text(log_frame, height=8, state=tk.DISABLED)
+        self.text_log.pack(fill=tk.BOTH, expand=True)
+
+        # 5. Status Bar
         self.status_var = tk.StringVar()
         self.status_var.set("Ready")
         self.status_bar = tk.Label(self.root, textvariable=self.status_var, bd=1, relief=tk.SUNKEN, anchor=tk.W)
         self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+
+    def log_message(self, message):
+        self.status_var.set(message)
+        self.text_log.config(state=tk.NORMAL)
+        self.text_log.insert(tk.END, f"{time.strftime('%H:%M:%S')} - {message}\n")
+        self.text_log.see(tk.END)
+        self.text_log.config(state=tk.DISABLED)
+        self.root.update()
 
     def select_folder(self):
         folder = filedialog.askdirectory()
@@ -77,7 +94,7 @@ class LocalFileProcessorApp:
             self.lbl_folder.config(text=folder)
             self.load_files()
             self.btn_start.config(state=tk.NORMAL, bg="#90ee90")
-            self.status_var.set(f"Loaded {len(self.files_to_process)} files.")
+            self.log_message(f"Loaded {len(self.files_to_process)} files from {folder}")
 
     def load_files(self):
         self.files_to_process = []
@@ -92,6 +109,10 @@ class LocalFileProcessorApp:
                 full_path = os.path.join(self.source_folder, f)
                 if f == "processed" or not os.path.isfile(full_path):
                     continue
+                
+                # Filter out system/binary files that are definitely not clinical docs
+                if f.startswith('.') or f.lower().endswith(('.ds_store', '.exe', '.py', '.pyc', '.json', '.bat', '.sh', '.command', '.dll', '.bin')):
+                    continue
                     
                 expected_output = os.path.join(output_folder, f"anonymized_{f}")
                 if os.path.exists(expected_output):
@@ -102,6 +123,7 @@ class LocalFileProcessorApp:
                     self.list_pending.insert(tk.END, f)
                     
         except Exception as e:
+            self.log_message(f"Error listing files: {e}")
             messagebox.showerror("Error", f"Failed to list files: {e}")
 
     def start_processing_thread(self):
@@ -116,9 +138,8 @@ class LocalFileProcessorApp:
         
         self.is_processing = True
         self.btn_start.config(state=tk.DISABLED)
-        self.status_var.set("Initializing Healthcare API Consumer...")
-        self.root.update()
-
+        self.log_message("Initializing DLP Processor...")
+        
         app_settings = self.config.get('app_settings', {})
         simulation_mode = app_settings.get('simulation_mode', True)
         
@@ -130,13 +151,13 @@ class LocalFileProcessorApp:
                 total = len(files_snapshot)
                 
                 for i, filename in enumerate(files_snapshot):
-                    self.status_var.set(f"Simulating upload for {filename} ({i+1}/{total})...")
+                    self.log_message(f"Simulating upload for {filename} ({i+1}/{total})...")
                     time.sleep(0.5)
                     
-                self.status_var.set("Simulating de-identification job...")
+                self.log_message("Simulating de-identification job...")
                 time.sleep(2)
                 
-                self.status_var.set("Simulating download...")
+                self.log_message("Simulating download...")
                 output_folder = os.path.join(self.source_folder, "processed")
                 os.makedirs(output_folder, exist_ok=True)
                 
@@ -151,71 +172,63 @@ class LocalFileProcessorApp:
                     self.list_pending.delete(0)
                     self.list_processed.insert(tk.END, f"{filename} (Simulated)")
                     
-                self.status_var.set("Simulation Complete.")
+                self.log_message("Simulation Complete.")
                 messagebox.showinfo("Done", "Simulation Complete!")
             
             else:
-                # REAL MODE
+                # REAL MODE - Direct DLP (Transient)
                 cloud_config = self.config.get('google_cloud', {})
-                processor = HealthcareProcessor(
+                processor = ClinicalDocumentProcessor(
                     project_id=cloud_config.get('project_id'),
                     location=cloud_config.get('location'),
-                    dataset_id=cloud_config.get('dataset_id'),
-                    fhir_store_id=cloud_config.get('fhir_store_id'),
-                    destination_store_id=cloud_config.get('destination_store_id'),
                     credentials_file=cloud_config.get('service_account_key_file')
                 )
                 
-                # 1. Upload All
-                self.status_var.set("Uploading files to FHIR Store...")
-                filename_map = {} # filename -> resource_id (not strictly needed if title is preserved)
-                
-                total_files = len(self.files_to_process)
-                # Snapshot list
-                files_snapshot = list(self.files_to_process)
-                
-                for idx, filename in enumerate(files_snapshot):
-                    self.status_var.set(f"Uploading {idx+1}/{total_files}: {filename}")
-                    
-                    file_path = os.path.join(self.source_folder, filename)
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                        
-                    processor.upload_file_as_fhir(filename, content)
-                
-                # 2. De-identify
-                self.status_var.set("Running Batch De-identification Job (this may take minutes)...")
-                # This blocks
-                results = processor.run_deidentify_job()
-                
-                # 3. Save Results
-                self.status_var.set("Saving processed files...")
+                # Setup output folder
                 output_folder = os.path.join(self.source_folder, "processed")
                 os.makedirs(output_folder, exist_ok=True)
+
+                total_files = len(self.files_to_process)
+                files_snapshot = list(self.files_to_process)
                 
-                for filename, text in results.items():
-                    # We only care about files we just uploaded? Or anything in the output store?
-                    # The results contain title -> text.
-                    output_path = os.path.join(output_folder, f"anonymized_{filename}")
-                    with open(output_path, 'w', encoding='utf-8') as f:
-                        f.write(text)
+                success_count = 0
+                
+                for idx, filename in enumerate(files_snapshot):
+                    self.log_message(f"Processing {idx+1}/{total_files}: {filename}")
                     
-                    # Update UI
-                    # (This logic is imperfect if results contain old files, but acceptable)
-                
-                # Clear pending list
+                    file_path = os.path.join(self.source_folder, filename)
+                    output_path = os.path.join(output_folder, f"anonymized_{filename}")
+                    
+                    try:
+                        # Direct RAM-only processing
+                        redacted_bytes = processor.process_document(file_path)
+                        
+                        if redacted_bytes:
+                            with open(output_path, 'wb') as f:
+                                f.write(redacted_bytes)
+                            
+                            success_count += 1
+                        else:
+                             self.log_message(f"Completed {filename} but no content returned?")
+
+                    except Exception as e:
+                        print(f"Error processing {filename}: {e}")
+                        self.log_message(f"Failed {filename}: {str(e)[:50]}...")
+                        # If failed, continue to next file
+                        continue
+
+                # Refresh processed
                 self.files_to_process = []
                 self.list_pending.delete(0, tk.END)
-                # Refresh processed
                 self.load_files() 
                 
-                self.status_var.set("Processing Complete!")
-                messagebox.showinfo("Done", "Batch Processing Complete via Google Healthcare API!")
+                self.log_message(f"Complete! Processed {success_count}/{total_files} files.")
+                messagebox.showinfo("Done", f"Batch Processing Complete via Google Cloud DLP!\n\nSuccessful: {success_count}\nFailed: {total_files - success_count}\n\nProcessed files saved to /processed folder.")
 
         except Exception as e:
-            print(e)
-            # messagebox.showerror("Processing Error", f"Error: {e}") # Can crash thread
-            self.status_var.set(f"Error: {str(e)[:50]}...")
+            full_error = str(e)
+            print(f"FULL ERROR TRACEBACK: {full_error}") 
+            self.log_message(f"Error: {full_error}")
             
         finally:
             self.is_processing = False

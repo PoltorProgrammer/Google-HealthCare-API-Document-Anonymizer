@@ -8,3 +8,8 @@ credentials.json
 processed/
 config.json
 .venv_trash_timestamp/
+data/
+error_log.txt
+debug_temp.bat
+repro.bat
+*.ps1

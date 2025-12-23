@@ -8,10 +8,7 @@ if not exist "config.json" (
         echo {
         echo     "google_cloud": {
         echo         "project_id": "ENTER_PROJECT_ID",
-        echo         "location": "us-central1",
-        echo         "dataset_id": "clinical-dataset",
-        echo         "fhir_store_id": "input-store",
-        echo         "destination_store_id": "anonymized-store",
+        echo         "location": "europe-west6",
         echo         "service_account_key_file": "credentials.json"
         echo     },
         echo     "app_settings": {

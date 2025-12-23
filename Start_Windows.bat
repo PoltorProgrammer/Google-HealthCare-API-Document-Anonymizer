@@ -1,4 +1,5 @@
 @echo off
+setlocal EnableDelayedExpansion
 TITLE Clinical Document Processor
 cls
 
@@ -12,21 +13,30 @@ echo.
 :: -------------------------------------------------------------
 :: STEP A: CREATE DESKTOP SHORTCUT (First Run Only)
 :: -------------------------------------------------------------
-set "TARGET_SCRIPT=%~dp0Start_Windows.bat"
-set "SHORTCUT_NAME=%USERPROFILE%\Desktop\Start Clinical Processor.lnk"
 
-:: Use a marker file to know if we already tried creating a shortcut
+:: Use current directory for temporary script to avoid %TEMP% issues
+set "PS_SCRIPT=%~dp0temp_shortcut_creator.ps1"
+
 if not exist ".shortcut_created" (
     echo [0/4] Creating Desktop Shortcut for you...
+
+    echo $desktop = [Environment]::GetFolderPath('Desktop'^) > "%PS_SCRIPT%"
+    echo $s = ^(New-Object -COM WScript.Shell^).CreateShortcut^("$desktop\Start Clinical Processor.lnk"^) >> "%PS_SCRIPT%"
+    echo $s.TargetPath = '%~dp0Start_Windows.bat' >> "%PS_SCRIPT%"
+    echo $s.WorkingDirectory = '%~dp0' >> "%PS_SCRIPT%"
+    echo $s.IconLocation = 'shell32.dll,238' >> "%PS_SCRIPT%"
+    echo $s.Save^(^) >> "%PS_SCRIPT%"
+
+    powershell -ExecutionPolicy Bypass -File "%PS_SCRIPT%"
     
-    powershell -Command "$s=(New-Object -COM WScript.Shell).CreateShortcut('%SHORTCUT_NAME%');$s.TargetPath='%TARGET_SCRIPT%';$s.WorkingDirectory='%~dp0';$s.IconLocation='shell32.dll,238';$s.Save()"
-    
-    if exist "%SHORTCUT_NAME%" (
+    del "%PS_SCRIPT%" >nul 2>&1
+
+    if exist "%USERPROFILE%\Desktop\Start Clinical Processor.lnk" (
         echo    [OK] Shortcut created on Desktop!
         echo. > .shortcut_created
     ) else (
         echo    [!] Information: Could not create desktop shortcut automatically.
-        echo        (You can right-click 'Start_App.bat' -^> Send to -^> Desktop to do it manually^)
+        echo        (You can right-click 'Start_Windows.bat' -^> Send to -^> Desktop to do it manually^)
     )
 )
 
